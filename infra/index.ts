@@ -13,11 +13,12 @@ const repoUrl = "https://github.com/douglasswm/svelte-mine-game.git";
 
 // User data script to set up the droplet
 const userData = `#!/bin/bash
-set -e
+exec > /var/log/user-data.log 2>&1
+set -ex
 
 # Update system packages
 apt-get update
-apt-get upgrade -y
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 
 # Install Node.js 20.x LTS
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -36,12 +37,15 @@ cd /var/www/app
 # Clone the repository
 git clone ${repoUrl} .
 
+# Remove pnpm lock file to avoid conflicts with npm
+rm -f pnpm-lock.yaml
+
 # Install dependencies and build
-npm install
+npm install --legacy-peer-deps
 npm run build
 
 # Create systemd service for the Node.js app
-cat > /etc/systemd/system/svelte-app.service << 'EOF'
+cat > /etc/systemd/system/svelte-app.service << 'EOFSERVICE'
 [Unit]
 Description=Svelte Mine Game
 After=network.target
@@ -53,18 +57,18 @@ WorkingDirectory=/var/www/app
 ExecStart=/usr/bin/node build/index.js
 Restart=on-failure
 Environment=PORT=3000
-Environment=HOST=127.0.0.1
+Environment=HOST=0.0.0.0
 Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOFSERVICE
 
 # Set ownership
 chown -R www-data:www-data /var/www/app
 
 # Configure nginx as reverse proxy
-cat > /etc/nginx/sites-available/default << 'EOF'
+cat > /etc/nginx/sites-available/default << 'EOFNGINX'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
@@ -83,13 +87,16 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 }
-EOF
+EOFNGINX
 
 # Enable and start services
 systemctl daemon-reload
 systemctl enable svelte-app
 systemctl start svelte-app
+systemctl enable nginx
 systemctl restart nginx
+
+echo "User data script completed successfully"
 `;
 
 // Create the droplet
