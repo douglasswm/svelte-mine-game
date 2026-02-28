@@ -6,10 +6,7 @@ const config = {
 	preprocess: vitePreprocess(),
 
 	kit: {
-		adapter: adapter({
-			// Run on port 3000 by default
-			out: 'build'
-		})
+		adapter: adapter()
 	}
 };
 
